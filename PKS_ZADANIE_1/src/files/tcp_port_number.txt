@@ -20,9 +20,9 @@
 18,Message Send Protocol (historic)
 19,Character Generator
 20,File Transfer [Default Data]
-20,FTP
+20,FTP data
 21,File Transfer [Control]
-21,FTP
+21,FTP control
 22,SSH
 22,The Secure Shell (SSH) Protocol
 23,Telnet
@@ -71,7 +71,7 @@
 66,Oracle SQL*NET
 67,Bootstrap Protocol Server
 68,Bootstrap Protocol Client
-69,Trivial File Transfer
+69,TFTP Trivial File Transfer Protocol
 70,Gopher
 71,Remote Job Service
 72,Remote Job Service

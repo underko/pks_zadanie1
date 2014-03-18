@@ -2,7 +2,13 @@ package code;
 
 import gui.Gui;
 
+import java.io.BufferedReader;
 import java.io.File;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.FileSystems;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 
 import org.jnetpcap.Pcap;
@@ -64,12 +70,46 @@ public class Analyzator {
 	    	Gui.vypis("Chyba pri nacitani suboru\n");
 	    	return 1;
 	    }
+
+	    int port_n = 0;
 	    
+		switch (index) {
+    		case 0:
+    		case 1:
+    		case 2:
+    			port_n = getPortNumberFromFile("http");
+    			break;
+    		case 3:
+    			port_n = getPortNumberFromFile("https");
+    			break;
+    		case 4:
+    			port_n = getPortNumberFromFile("telnet");
+    			break;
+    		case 5:
+    			port_n = getPortNumberFromFile("ssh");
+    			break;
+    		case 6:
+    			port_n = getPortNumberFromFile("ftp control");
+    			break;
+    		case 7:
+    			port_n = getPortNumberFromFile("ftp data");
+    			break;
+    		case 8:
+    			port_n = getPortNumberFromFile("tftp");
+    			break;
+    		case 9:
+    		case 10:
+    			break;
+    		default:
+    			break;
+		}
+	    
+		final String parseString = String.valueOf(port_n);
+		
 	    pcap.loop(-1, new JPacketHandler<StringBuilder>() { 
 	    	public void nextPacket(JPacket packet, StringBuilder errbuf) {
 	    		String typ = typ(packet);
-	    		
-				analyzaIp(packet, typ);
+	    		final int portFinal = Integer.parseInt(parseString);
 	    		
 	    		if (typ == ethernet) {
 	    			int etherType = getEtherType(packet);
@@ -80,60 +120,14 @@ public class Analyzator {
 		    				switch (getProtocol(packet)) {
 			    				case 6: // 06 TCP
 			    				case 11: // 11 UDP
-			    					
 			    					int srcPort = getSrcPort(packet);
 			    	    			int dstPort = getDstPort(packet);
-			    					
-			    					switch(index) {
-				    	    			case 2: //http
-				    	    				if (srcPort == 80 || dstPort == 80) {
-				    	    					spracujKomunikaciu(packet);
-				    	    					setStartEnd();
-				    	    				}
-				    	    				break;
-				    	    			case 3: //https
-				    	    				if (srcPort == 443 || dstPort == 443) {
-				    	    					spracujKomunikaciu(packet);
-				    	    					setStartEnd();
-				    	    				}
-				    	    				break;
-				    	    			case 4: //telnet
-				    	    				if (srcPort == 23 || dstPort == 23) {
-				    	    					spracujKomunikaciu(packet);
-				    	    					setStartEnd();
-				    	    				}
-				    	    				break;
-				    	    			case 5: //ssh
-				    	    				if (srcPort == 22 || dstPort == 22) {
-				    	    					spracujKomunikaciu(packet);
-				    	    					setStartEnd();
-				    	    				}
-				    	    				break;
-				    	    			case 6: //FTP riadiace
-				    	    				if (srcPort == 21 || dstPort == 21) {
-				    	    					spracujKomunikaciu(packet);
-				    	    					setStartEnd();
-				    	    				}
-				    	    				break;
-				    	    			case 7: //FTP datove
-				    	    				if (srcPort == 20 || dstPort == 20) {
-				    	    					spracujKomunikaciu(packet);
-				    	    					setStartEnd();
-				    	    				}
-				    	    				break;
-				    	    			case 8: //TFTP
-				    	    				if (srcPort == 69 || dstPort == 69) {
-				    	    					spracujKomunikaciu(packet);
-				    	    					setStartEnd();
-				    	    				}
-				    	    				break;
-				    	    			case 9: //ICMP
-				    	    				break;
-				    	    			case 10: //ARP
-				    	    				break;
-				    	    			default:
-				    	    				break;
-			    	    			}
+			    	    			
+			    	    			if (srcPort == portFinal || dstPort == portFinal) {
+		    	    					spracujKomunikaciu(packet);
+		    	    					setStartEnd();
+		    	    				}
+			    	    			
 			    					break;
 			    				case 1: // 01 ICMP
 			    					//analyza ICMP protokolu
@@ -161,6 +155,28 @@ public class Analyzator {
 		return 0;
 	}
 	
+	private static int getPortNumberFromFile(String string) {
+		int port_n = -1;
+		Path file = FileSystems.getDefault().getPath("C:\\Users\\Martin\\git\\pks_zadanie1\\PKS_ZADANIE_1\\bin\\files", "tcp_port_number.txt");
+		
+		try (BufferedReader reader = Files.newBufferedReader(file, StandardCharsets.UTF_8)) {
+		    String line = null;
+		    while ((line = reader.readLine()) != null) {
+		    	String[] riadok = line.split(",");
+		    	if (riadok[1].toLowerCase().contains(string.toLowerCase())) {
+		    		port_n = Integer.parseInt(riadok[0]);
+		    		Gui.vypis("Zhoda v subore: " + line + "\n");
+		    		break;
+		    	}
+		    }
+		} 
+		catch (Exception e) {
+		    Gui.vypis("Chyba pri citani suboru: " + e + "\n");
+		}
+		
+		return port_n;
+	}
+
 	private static void vypisPacket(JPacket p) {
 		Gui.vypis("No:              " + p.getFrameNumber() + "\n");
 		Gui.vypis("Zachytena dlzka: " + p.getCaptureHeader().caplen() + "\n");
