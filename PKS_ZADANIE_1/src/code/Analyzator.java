@@ -44,7 +44,7 @@ public class Analyzator {
 	    		
 	    		Gui.vypis("No:              " + packet.getFrameNumber() + "\n");
 	    		Gui.vypis("Zachytena dlzka: " + packet.getCaptureHeader().caplen() + "\n");
-	    		Gui.vypis("Dlzka po mediu:  " + ((packet.getCaptureHeader().wirelen() < 64)? 64: packet.getCaptureHeader().wirelen()) + "\n");
+	    		Gui.vypis("Dlzka po mediu:  " + wireSize(packet) + "\n");
 	    		Gui.vypis("Typ:             " + typ + "\n");
 	    		Gui.vypis("Source MAC:      " + srcMac(packet) + "\n");
 	    		Gui.vypis("Destination MAC: " + dstMac(packet) + "\n");
@@ -76,6 +76,7 @@ public class Analyzator {
 		switch (index) {
     		case 0:
     		case 1:
+    			break;
     		case 2:
     			port_n = getPortNumberFromFile("http");
     			break;
@@ -116,24 +117,25 @@ public class Analyzator {
 	    			
 	    			switch (etherType) {
 		    			case 2048: // 0800 IPv4
-		    				
-		    				switch (getProtocol(packet)) {
-			    				case 6: // 06 TCP
-			    				case 11: // 11 UDP
-			    					int srcPort = getSrcPort(packet);
-			    	    			int dstPort = getDstPort(packet);
-			    	    			
-			    	    			if (srcPort == portFinal || dstPort == portFinal) {
-		    	    					spracujKomunikaciu(packet);
-		    	    					setStartEnd();
-		    	    				}
-			    	    			
-			    					break;
-			    				case 1: // 01 ICMP
-			    					//analyza ICMP protokolu
-			    					break;
-			    				default: 
-			    					break;
+		    				if (index > 2 && index < 9) {
+			    				switch (getProtocol(packet)) {
+				    				case 6: // 06 TCP
+				    				case 11: // 11 UDP
+				    					int srcPort = getSrcPort(packet);
+				    	    			int dstPort = getDstPort(packet);
+				    	    			
+				    	    			if (srcPort == portFinal || dstPort == portFinal) {
+			    	    					spracujKomunikaciu(packet);
+			    	    					setStartEnd();
+			    	    				}
+				    	    			
+				    					break;
+				    				case 1: // 01 ICMP
+				    					//analyza ICMP protokolu
+				    					break;
+				    				default: 
+				    					break;
+			    				}
 		    				}
 		    				break;
 		    			case 34525: // 86DD IPv6
@@ -141,6 +143,9 @@ public class Analyzator {
 		    				break;
 		    			case 2054: // 0806 ARP
 		    				//ARP dvojice
+		    				if (index == 10) {
+		    					spracujARP(packet);
+		    				}
 		    				break;
 		    			default:
 		    				break;
@@ -148,11 +153,43 @@ public class Analyzator {
 	    			
 	    		}
 	    	}
+
 	    }, errbuf);
 	    
-	    vypisKomunikacie();
+	    if (index == 10) {
+	    	vypisArpKom();
+	    }
+	    else {
+	    	vypisKomunikacie();
+	    }
 	    
 		return 0;
+	}
+	
+	private static void spracujARP(JPacket packet) {
+		int typ = packet.getUShort(20);
+		
+		if(typ == 1) {
+			komunikacie.add(new Komunikacia(id++, getSrcIpArp(packet), getDstIpArp(packet), 0, 0, 0, true, false));
+			komunikacie.get(komunikacie.size() - 1).addToPacketList(packet);
+		}
+		else if (typ == 2) {
+			for (Komunikacia k: komunikacie) {
+				
+				if (!k.hasEnd()) {
+					String src = getSrcIpArp(k.getPacketList().get(0));
+					String dst = getDstIpArp(k.getPacketList().get(0));
+					String srcA = getSrcIpArp(packet);
+					String dstA = getDstIpArp(packet);
+					
+					if (src.equals(dstA) && dst.equals(srcA)) {
+						k.addToPacketList(packet);
+						k.setEnd(true);
+						break;
+					}
+				}
+			}
+		}
 	}
 	
 	private static int getPortNumberFromFile(String string) {
@@ -166,7 +203,8 @@ public class Analyzator {
 		    	if (riadok[1].toLowerCase().contains(string.toLowerCase())) {
 		    		port_n = Integer.parseInt(riadok[0]);
 		    		Gui.vypis("Zhoda v subore: " + line + "\n");
-		    		break;
+		    		Gui.vypis("Vyhladavanie komunikacie cez port: " + riadok[0] + "\n\n");
+		    		break;                                                                                                 
 		    	}
 		    }
 		} 
@@ -177,16 +215,44 @@ public class Analyzator {
 		return port_n;
 	}
 
+	private static int wireSize(JPacket p) {
+		int size = p.getCaptureHeader().wirelen();
+		return (size > 60)? size + 4: 64;
+	}
+	
 	private static void vypisPacket(JPacket p) {
 		Gui.vypis("No:              " + p.getFrameNumber() + "\n");
 		Gui.vypis("Zachytena dlzka: " + p.getCaptureHeader().caplen() + "\n");
-		Gui.vypis("Dlzka po mediu:  " + p.getCaptureHeader().wirelen() + "\n");
+		Gui.vypis("Dlzka po mediu:  " + wireSize(p) + "\n");
 		Gui.vypis("Typ:             " + typ(p) + "\n");
 		Gui.vypis("Source MAC:      " + srcMac(p) + "\n");
 		Gui.vypis("Destination MAC: " + dstMac(p) + "\n");
 		Gui.vypis("Src Port: " + getSrcPort(p) + "\n");
 		Gui.vypis("Dst Port: " + getDstPort(p) + "\n");
 		Gui.vypis(hexPacket(p) + "\n\n");
+	}
+	
+	private static void vypisArpPacket(JPacket p) {
+		Gui.vypis("No:              " + p.getFrameNumber() + "\n");
+		Gui.vypis("Zachytena dlzka: " + p.getCaptureHeader().caplen() + "\n");
+		Gui.vypis("Dlzka po mediu:  " + wireSize(p) + "\n");
+		Gui.vypis("Typ:             " + ((p.getUShort(20) == 1)? ("ARP Request\nIP: " + getDstIpArp(p) + " MAC: ???\n"): ("ARP Reply\nIP: " + getDstIpArp(p) + " MAC: " + srcMac(p)) + "\n"));
+		Gui.vypis("Source IP:       " + getSrcIpArp(p) + "\n");
+		Gui.vypis("Destination IP:  " + getDstIpArp(p) + "\n");
+		Gui.vypis("Source MAC:      " + srcMac(p) + "\n");
+		Gui.vypis("Destination MAC: " + dstMac(p) + "\n");
+		Gui.vypis(hexPacket(p) + "\n\n");
+	}
+	
+	private static void vypisArpKom() {
+		for (Komunikacia k: komunikacie) {
+			if (k.hasStart() && k.hasEnd()) {
+				Gui.vypis("Komunikacia c. " + k.getId() + "\n");
+				Gui.vypis(((k.hasStart() && k.hasEnd())? "Kompletna\n": "Nekompletna\n"));
+				for (int i = 0; i < k.getPacketList().size(); ++i)
+					vypisArpPacket(k.getPacketList().get(i));
+			}
+		}
 	}
 	
 	private static void vypisKomunikacie() {
@@ -204,7 +270,7 @@ public class Analyzator {
 				Gui.vypis("Pocet ramcov: " + k.getPacketList().size() + "\n");
 				
 				if (k.getPacketList().size() > 20) {
-					for (int i = 0; i < 10; ++i) {
+					for (int i = 0; i < 10; ++i) {                             
 						JPacket p = k.getPacketList().get(i);
 						vypisPacket(p);
 					}
@@ -271,7 +337,7 @@ public class Analyzator {
 		}
 		
 	}
-
+	
 	protected static void spracujKomunikaciu(JPacket packet) {
 	
 		String source = getSrcIP(packet);
@@ -422,6 +488,14 @@ public class Analyzator {
 	
 	private static String getDstIP(JPacket packet) {
 		return new String(String.format("%d.%d.%d.%d", packet.getUByte(30), packet.getUByte(31), packet.getUByte(32), packet.getUByte(33)));
+	}
+	
+	private static String getSrcIpArp(JPacket packet) {
+		return new String(String.format("%d.%d.%d.%d", packet.getUByte(28), packet.getUByte(29), packet.getUByte(30), packet.getUByte(31)));
+	}
+	
+	private static String getDstIpArp(JPacket packet) {
+		return new String(String.format("%d.%d.%d.%d", packet.getUByte(38), packet.getUByte(39), packet.getUByte(40), packet.getUByte(41)));
 	}
 
 	protected static int getProtocol(JPacket packet) {
