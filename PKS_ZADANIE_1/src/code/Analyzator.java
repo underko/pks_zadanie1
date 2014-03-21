@@ -4,7 +4,6 @@ import gui.Gui;
 
 import java.io.BufferedReader;
 import java.io.File;
-import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
@@ -121,17 +120,20 @@ public class Analyzator {
 			    				switch (getProtocol(packet)) {
 				    				case 6: // 06 TCP
 				    				case 11: // 11 UDP
-				    					int srcPort = getSrcPort(packet);
-				    	    			int dstPort = getDstPort(packet);
-				    	    			
-				    	    			if (srcPort == portFinal || dstPort == portFinal) {
-			    	    					spracujKomunikaciu(packet);
-			    	    					setStartEnd();
-			    	    				}
-				    	    			
+				    					if (index > 2 && index < 9) {
+					    					int srcPort = getSrcPort(packet);
+					    	    			int dstPort = getDstPort(packet);
+					    	    			
+					    	    			if (srcPort == portFinal || dstPort == portFinal) {
+				    	    					spracujKomunikaciu(packet);
+				    	    					setStartEnd();
+				    	    				}
+				    					}
 				    					break;
 				    				case 1: // 01 ICMP
 				    					//analyza ICMP protokolu
+				    					if (index == 9)
+				    						spracujICMP(packet);
 				    					break;
 				    				default: 
 				    					break;
@@ -153,17 +155,82 @@ public class Analyzator {
 	    			
 	    		}
 	    	}
-
 	    }, errbuf);
 	    
 	    if (index == 10) {
 	    	vypisArpKom();
+	    }
+	    else if (index == 9) {
+	    	vypisIcmpKom();
 	    }
 	    else {
 	    	vypisKomunikacie();
 	    }
 	    
 		return 0;
+	}
+	
+
+	protected static void spracujKomunikaciu(JPacket packet) {
+		
+		String source = getSrcIP(packet);
+		String destination = getDstIP(packet);
+		int sourcePort = getSrcPort(packet);
+		int destPort = getDstPort(packet);
+		
+		boolean zhoda = false;
+		
+		//ak je prazdny zoznam komunikacii
+		if (komunikacie.isEmpty()) {
+			komunikacie.add(new Komunikacia(id, source, destination, 80, sourcePort, destPort, false, false));
+			
+			zhoda = addPacketToComm(source, destination, sourcePort, destPort, packet);
+			
+			id++;
+			return;
+		}
+		
+		//ak nie je prazdny hladame zhodu
+		zhoda = addPacketToComm(source, destination, sourcePort, destPort, packet);
+		
+		//ak sa nenasla zhoda 
+		if (zhoda == false) {
+			komunikacie.add(new Komunikacia(id, source, destination, 80, sourcePort, destPort, false, false));
+			
+			addPacketToComm(source, destination, sourcePort, destPort, packet);
+			
+			id++;
+			return;
+		}	
+	}
+	
+	private static void spracujICMP(JPacket packet) {
+		
+		String source = getSrcIP(packet);
+		String destination = getDstIP(packet);
+		int type = packet.getUByte(34);
+		int code = packet.getUByte(35);
+		
+		boolean zhoda = false;
+		
+		if (type == 8) {	//icmp echo request
+			if (komunikacie.isEmpty()) {
+				komunikacie.add(new Komunikacia(id++, source, destination, 1, 0, 0, true, false));
+				zhoda = addPacketToComm(source, destination, type, code, packet);
+			}
+		}
+		else if (type == 0) {	//icmp echo reply
+			zhoda = addPacketToComm(source, destination, type, code, packet);
+			
+			if (!zhoda) {
+				komunikacie.add(new Komunikacia(id++, source, destination, 1, 0, 0, false, true));
+				zhoda = addPacketToComm(source, destination, type, code, packet);
+			}
+		}
+		else {
+			komunikacie.add(new Komunikacia(id++, source, destination, 1, 0, 0, false, false));
+			zhoda = addPacketToComm(source, destination, type, code, packet);
+		}
 	}
 	
 	private static void spracujARP(JPacket packet) {
@@ -255,6 +322,16 @@ public class Analyzator {
 		}
 	}
 	
+	private static void vypisIcmpKom() {
+		for (Komunikacia k: komunikacie) {
+			Gui.vypis("Komunikacia c. " + k.getId() + "\n");
+			Gui.vypis(((k.hasStart() && k.hasEnd())? "Kompletna\n": "Nekompletna\n"));
+			for (int i = 0; i < k.getPacketList().size(); ++i)
+				vypisPacket(k.getPacketList().get(i));
+		}
+		
+	}
+	
 	private static void vypisKomunikacie() {
 		boolean gotIt = false;
 		
@@ -336,39 +413,6 @@ public class Analyzator {
 			Gui.vypis("================================================\n");
 		}
 		
-	}
-	
-	protected static void spracujKomunikaciu(JPacket packet) {
-	
-		String source = getSrcIP(packet);
-		String destination = getDstIP(packet);
-		int sourcePort = getSrcPort(packet);
-		int destPort = getDstPort(packet);
-		
-		boolean zhoda = false;
-		
-		//ak je prazdny zoznam komunikacii
-		if (komunikacie.isEmpty()) {
-			komunikacie.add(new Komunikacia(id, source, destination, 80, sourcePort, destPort, false, false));
-			
-			zhoda = addPacketToComm(source, destination, sourcePort, destPort, packet);
-			
-			id++;
-			return;
-		}
-		
-		//ak nie je prazdny hladame zhodu
-		zhoda = addPacketToComm(source, destination, sourcePort, destPort, packet);
-		
-		//ak sa nenasla zhoda 
-		if (zhoda == false) {
-			komunikacie.add(new Komunikacia(id, source, destination, 80, sourcePort, destPort, false, false));
-			
-			addPacketToComm(source, destination, sourcePort, destPort, packet);
-			
-			id++;
-			return;
-		}	
 	}
 
 	private static boolean addPacketToComm(String source, String destination, int srcPort, int dstPort, JPacket packet) {
