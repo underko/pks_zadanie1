@@ -135,8 +135,10 @@ public class Analyzator {
 				    					break;
 				    				case 1: // 01 ICMP
 				    					//analyza ICMP protokolu
-				    					if (index == 9)
+				    					if (index == 9) {
 				    						spracujICMP(packet);
+				    						kontrolaICMP();
+				    					}
 				    					break;
 				    				default: 
 				    					break;
@@ -158,6 +160,7 @@ public class Analyzator {
 	    			
 	    		}
 	    	}
+
 	    }, errbuf);
 	    
 	    if (index == 10) {
@@ -216,24 +219,34 @@ public class Analyzator {
 		
 		boolean zhoda = false;
 		
-		if (type == 8) {	//icmp echo request
-			if (komunikacie.isEmpty()) {
-				komunikacie.add(new Komunikacia(id++, source, destination, 1, 0, 0, true, false));
-				zhoda = addPacketToComm(source, destination, type, code, packet);
-			}
-		}
-		else if (type == 0) {	//icmp echo reply
-			zhoda = addPacketToComm(source, destination, type, code, packet);
-			
-			if (!zhoda) {
-				komunikacie.add(new Komunikacia(id++, source, destination, 1, 0, 0, false, true));
-				zhoda = addPacketToComm(source, destination, type, code, packet);
-			}
+		if (komunikacie.isEmpty()) {
+			komunikacie.add(new Komunikacia(id++, source, destination, 1, 0, 0, true, false));
+			zhoda = addPacketToComm(source, destination, 0, 0, packet);
 		}
 		else {
-			komunikacie.add(new Komunikacia(id++, source, destination, 1, 0, 0, false, false));
-			zhoda = addPacketToComm(source, destination, type, code, packet);
+			if (type == 8) {
+				komunikacie.add(new Komunikacia(id++, source, destination, 1, 0, 0, true, false));
+				zhoda = addPacketToComm(source, destination, 0, 0, packet);
+			}
+			else if (type == 0) {
+				zhoda = addPacketToComm(source, destination, 0, 0, packet);
+				
+				if (!zhoda) {
+					komunikacie.add(new Komunikacia(id++, source, destination, 1, 0, 0, false, true));
+					zhoda = addPacketToComm(source, destination, 0, 0, packet);
+				}
+			}
+			else {
+				zhoda = addPacketToComm(source, destination, 0, 0, packet);
+				
+				if (!zhoda) {
+					komunikacie.add(new Komunikacia(id++, source, destination, 1, 0, 0, false, false));
+					zhoda = addPacketToComm(source, destination, 0, 0, packet);
+				} 
+			}
 		}
+		
+		System.out.println(String.format("src: %s\ndst: %s\ntype: %d\tcode: %d\nzhoda: %s\npocet: %d\n\n", source, destination, type, code, zhoda, komunikacie.size()));
 	}
 	
 	private static void spracujARP(JPacket packet) {
@@ -257,6 +270,21 @@ public class Analyzator {
 						k.setEnd(true);
 						break;
 					}
+				}
+			}
+		}
+	}
+	
+	private static void kontrolaICMP() {
+		
+		for (Komunikacia k: komunikacie) {
+			for (JPacket p: k.getPacketList()) {
+				int type = p.getUByte(34);
+				int code = p.getUByte(35);
+				
+				if (type == 0 && code == 0) {
+					k.setEnd(true);
+					break;
 				}
 			}
 		}
@@ -314,6 +342,18 @@ public class Analyzator {
 		Gui.vypis(hexPacket(p) + "\n\n");
 	}
 	
+	private static void vypisIcmpPacket(JPacket p) {
+		Gui.vypis("No:              " + p.getFrameNumber() + "\n");
+		Gui.vypis("Zachytena dlzka: " + p.getCaptureHeader().caplen() + "\n");
+		Gui.vypis("Dlzka po mediu:  " + wireSize(p) + "\n");
+		Gui.vypis("Typ:             " + typ(p) + "\n");
+		Gui.vypis("Source MAC:      " + srcMac(p) + "\n");
+		Gui.vypis("Destination MAC: " + dstMac(p) + "\n");
+		Gui.vypis("Typ ICMP:        " + getIcmpType(p) + "\n");
+		Gui.vypis("Kod ICMP:        " + getIcmpCode(p) + "\n");
+		Gui.vypis(hexPacket(p) + "\n\n");
+	}
+	
 	private static void vypisArpKom() {
 		for (Komunikacia k: komunikacie) {
 			if (k.hasStart() && k.hasEnd()) {
@@ -330,8 +370,56 @@ public class Analyzator {
 			Gui.vypis("Komunikacia c. " + k.getId() + "\n");
 			Gui.vypis(((k.hasStart() && k.hasEnd())? "Kompletna\n": "Nekompletna\n"));
 			for (int i = 0; i < k.getPacketList().size(); ++i)
-				vypisPacket(k.getPacketList().get(i));
+				vypisIcmpPacket(k.getPacketList().get(i));
 		}
+		
+	}
+	
+	private static String getIcmpType(JPacket p) {
+		Path file = FileSystems.getDefault().getPath("C:\\Users\\Martin\\git\\pks_zadanie1\\PKS_ZADANIE_1\\bin\\files", "icmp_type.txt");
+		int type = p.getUByte(34);
+		
+		try (BufferedReader reader = Files.newBufferedReader(file, StandardCharsets.UTF_8)) {
+		    String line = null;
+		    while ((line = reader.readLine()) != null) {
+		    	String[] riadok = line.split(",");
+		    	if (Integer.parseInt(riadok[0]) == type) {
+		    		return riadok[1];
+		    	}
+		    }
+		} 
+		catch (Exception e) {
+		    Gui.vypis("Chyba pri citani suboru: " + e + "\n");
+		}
+		
+		return String.format("Neznamy (%d)", type);
+	}
+	
+	private static String getIcmpCode(JPacket p) {
+		int type = p.getUByte(34);
+		int code = p.getUByte(35);
+		
+		if (type == 3) {
+			Path file = FileSystems.getDefault().getPath("C:\\Users\\Martin\\git\\pks_zadanie1\\PKS_ZADANIE_1\\bin\\files", "icmp_dest_code.txt");
+			
+			try (BufferedReader reader = Files.newBufferedReader(file, StandardCharsets.UTF_8)) {
+			    String line = null;
+			    while ((line = reader.readLine()) != null) {
+			    	String[] riadok = line.split(",");
+			    	if (Integer.parseInt(riadok[0]) == code) {
+			    		return riadok[1];
+			    	}
+			    }
+			} 
+			catch (Exception e) {
+			    Gui.vypis("Chyba pri citani suboru: " + e + "\n");
+			}
+			
+			return String.format("Neznamy (%d)", code);
+		}
+		else
+			return String.format("Neznamy (%d)", code);
+		
 		
 	}
 	
