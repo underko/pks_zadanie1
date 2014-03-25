@@ -98,7 +98,10 @@ public class Analyzator {
     			port_n = getPortNumberFromFile("tftp");
     			break;
     		case 9:
+    			port_n = 9;		//oznacenie pre spracovanie
+    			break;
     		case 10:
+    			port_n = 10;	//oznacenie pre spracovanie
     			break;
     		default:
     			break;
@@ -116,11 +119,11 @@ public class Analyzator {
 	    			
 	    			switch (etherType) {
 		    			case 2048: // 0800 IPv4
-		    				if (index > 2 && index < 9) {
+		    				if (index > 1 && index < 10) {
 			    				switch (getProtocol(packet)) {
 				    				case 6: // 06 TCP
 				    				case 11: // 11 UDP
-				    					if (index > 2 && index < 9) {
+				    					if (index > 1 && index < 9) {
 					    					int srcPort = getSrcPort(packet);
 					    	    			int dstPort = getDstPort(packet);
 					    	    			
@@ -345,6 +348,8 @@ public class Analyzator {
 				Gui.vypis("Klient: " + k.getSource() + ":" + getSrcPort(k.getPacketList().get(0)) + "\n");
 				Gui.vypis("Server: " + k.getDestination() + ":" + getDstPort(k.getPacketList().get(0)) + "\n");
 				Gui.vypis("Pocet ramcov: " + k.getPacketList().size() + "\n");
+				Gui.vypis("Velkosti ramcov:\n");
+				vypisPacketSizeStat(k);
 				
 				if (k.getPacketList().size() > 20) {
 					for (int i = 0; i < 10; ++i) {                             
@@ -358,6 +363,7 @@ public class Analyzator {
 						JPacket p = k.getPacketList().get(i);
 						vypisPacket(p);
 					}
+					break;
 				}
 				else {
 					for (JPacket p: k.getPacketList())
@@ -375,7 +381,7 @@ public class Analyzator {
 		
 		gotIt = false;
 		
-		//1. nekompletna komunikacia
+		//1. nekompletna komunikacia	
 		for (Komunikacia k: komunikacie) {
 			if (k.hasStart() && !k.hasEnd()) {
 				gotIt = true;
@@ -385,6 +391,7 @@ public class Analyzator {
 				Gui.vypis("Klient: " + k.getSource() + ":" + getSrcPort(k.getPacketList().get(0)) + "\n");
 				Gui.vypis("Server: " + k.getDestination() + ":" + getDstPort(k.getPacketList().get(0)) + "\n");
 				Gui.vypis("Pocet ramcov: " + k.getPacketList().size() + "\n");
+				vypisPacketSizeStat(k);
 				
 				if (k.getPacketList().size() > 20) {
 					for (int i = 0; i < 10; ++i) {
@@ -398,6 +405,7 @@ public class Analyzator {
 						JPacket p = k.getPacketList().get(i);
 						vypisPacket(p);
 					}
+					break;
 				}
 				else {
 					for (JPacket p: k.getPacketList())
@@ -423,6 +431,7 @@ public class Analyzator {
 				  (dstPort == k.getPortSrc() && srcPort == k.getPortDst()) )		 &&
 				  (k.hasEnd() == false) ) {
 				k.addToPacketList(packet);
+				k.updateSizeList(wireSize(packet));
 				return true;
 			}	
 		}
@@ -598,6 +607,17 @@ public class Analyzator {
 			if (z.getBajty() == max)
 				Gui.vypis(z.getIp() + "\t" + z.getBajty() + " B \n");
 		}
+	}
+	
+	public static void vypisPacketSizeStat(Komunikacia k) {
+		Gui.vypis("<   0 -   19> : " + k.getSizeListItem(0) + "\n");
+		Gui.vypis("<  20 -   39> : " + k.getSizeListItem(1) + "\n");
+		Gui.vypis("<  40 -   79> : " + k.getSizeListItem(2) + "\n");
+		Gui.vypis("<  80 -  159> : " + k.getSizeListItem(3) + "\n");
+		Gui.vypis("< 160 -  319> : " + k.getSizeListItem(4) + "\n");
+		Gui.vypis("< 320 -  639> : " + k.getSizeListItem(5) + "\n");
+		Gui.vypis("< 640 - 1279> : " + k.getSizeListItem(6) + "\n");
+		Gui.vypis("<1280 -     > : " + k.getSizeListItem(7) + "\n");
 	}
 	
 	public static String zistiIp(JPacket packet) {

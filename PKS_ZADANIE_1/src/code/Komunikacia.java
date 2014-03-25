@@ -18,6 +18,7 @@ public class Komunikacia {
 	protected boolean end;
 	
 	protected ArrayList<JPacket> packetList = new ArrayList<JPacket>();
+	protected int packetSize[] = {0, 0, 0, 0, 0, 0, 0, 0};	//0-19, 20-39, 40-79, 80-159, 160-319, 320-639, 640-1279, 1280-*
 
 	public Komunikacia(int id, String source, String destination, int protocol, int portSrc, int portDst, boolean start, boolean end) {
 		this.id = id;
@@ -103,5 +104,29 @@ public class Komunikacia {
 
 	public void addToPacketList(JPacket packet) {
 		this.packetList.add(packet);
+	}
+
+	public void updateSizeList(int wireSize) {
+		//0-19, 20-39, 40-79, 80-159, 160-319, 320-639, 640-1279, 1280-*
+		if (wireSize < 19)
+			packetSize[0]++;
+		else if (wireSize < 39)
+			packetSize[1]++;
+		else if (wireSize < 79)
+			packetSize[2]++;
+		else if (wireSize < 159)
+			packetSize[3]++;
+		else if (wireSize < 319)
+			packetSize[4]++;
+		else if (wireSize < 639)
+			packetSize[5]++;
+		else if (wireSize < 1279)
+			packetSize[6]++;
+		else
+			packetSize[7]++;
+	}
+	
+	public int getSizeListItem(int i) {
+		return packetSize[i];
 	}
 }
