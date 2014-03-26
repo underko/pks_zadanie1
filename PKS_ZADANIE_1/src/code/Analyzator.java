@@ -123,7 +123,11 @@ public class Analyzator {
 			    				switch (getProtocol(packet)) {
 				    				case 6: // 06 TCP
 				    				case 11: // 11 UDP
-				    					if (index > 1 && index < 9) {
+				    					if (index == 8) {
+				    						//spracuj tftp (udp)
+				    						spracujTftp(packet);
+				    					}
+				    					else if (index > 1 && index < 9) {
 					    					int srcPort = getSrcPort(packet);
 					    	    			int dstPort = getDstPort(packet);
 					    	    			
@@ -208,6 +212,24 @@ public class Analyzator {
 			id++;
 			return;
 		}	
+	}
+	
+	protected static void spracujTftp(JPacket packet) {
+		
+		String source = getSrcIP(packet);
+		String destination = getDstIP(packet);
+		int sourcePort = getSrcPort(packet);
+		int destPort = getDstPort(packet);
+		
+		boolean zhoda = false;
+		
+		if (destPort == 69) {	//nova komunikacia 
+			//nova kom
+			//read/ write?
+		}
+		else {	//data/error
+			
+		}
 	}
 	
 	private static void spracujICMP(JPacket packet) {
@@ -318,6 +340,18 @@ public class Analyzator {
 		return (size > 60)? size + 4: 64;
 	}
 	
+	public static int[] getFlags(JPacket packet) {
+		int flags[] = {0, 0, 0, 0};
+		int val = packet.getUByte(47);
+		
+		flags[0] = ((val & (1 << 4)) != 0)? 1: 0; 
+		flags[1] = ((val & (1 << 2)) != 0)? 1: 0;
+		flags[2] = ((val & (1 << 1)) != 0)? 1: 0;
+		flags[3] = ((val & (1 << 0)) != 0)? 1: 0;
+		
+		return flags;
+	}
+	
 	private static void vypisPacket(JPacket p) {
 		Gui.vypis("No:              " + p.getFrameNumber() + "\n");
 		Gui.vypis("Zachytena dlzka: " + p.getCaptureHeader().caplen() + "\n");
@@ -327,6 +361,12 @@ public class Analyzator {
 		Gui.vypis("Destination MAC: " + dstMac(p) + "\n");
 		Gui.vypis("Src Port: " + getSrcPort(p) + "\n");
 		Gui.vypis("Dst Port: " + getDstPort(p) + "\n");
+		int flags[] = getFlags(p);
+		Gui.vypis("Flags\n");
+		Gui.vypis("ACK: " + flags[0] + "\n");
+		Gui.vypis("RST: " + flags[1] + "\n");
+		Gui.vypis("SYN: " + flags[2] + "\n");
+		Gui.vypis("FIN: " + flags[3] + "\n");
 		Gui.vypis(hexPacket(p) + "\n\n");
 	}
 	
