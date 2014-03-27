@@ -220,6 +220,7 @@ public class Analyzator {
 		String destination = getDstIP(packet);
 		int sourcePort = getSrcPort(packet);
 		int destPort = getDstPort(packet);
+		int typ = packet.getUShort(37);
 		
 		boolean zhoda = false;
 		
@@ -228,7 +229,7 @@ public class Analyzator {
 			//read/ write?
 		}
 		else {	//data/error
-			
+			//prejdenie existujucich kom
 		}
 	}
 	

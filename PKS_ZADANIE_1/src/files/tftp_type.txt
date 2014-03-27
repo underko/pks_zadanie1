@@ -1,0 +1,5 @@
+1,Read request (RRQ)
+2,Write request (WRQ)
+3,Data (DATA)
+4,Acknowledgment (ACK)
+5,Error (ERROR)
