@@ -56,18 +56,21 @@ public class Gui extends JFrame {
 		btn_anlz = new JButton("Analyzuj");
 		btn_anlz.setBounds(win.getWidth() / 2 + 10, 5, 80, 30);
 		btn_anlz.setFont(font_btn);
+		btn_anlz.setContentAreaFilled(false);
 		win.add(btn_anlz);
 		
 		//btn_load
 		btn_load = new JButton("Load");
 		btn_load.setBounds(win.getWidth() / 2 + 10 + 80 + 5, 5, 80, 30);
 		btn_load.setFont(font_btn);
+		btn_load.setContentAreaFilled(false);
 		win.add(btn_load);
 		
 		//btn_clr
 		btn_clr = new JButton("Clear");
 		btn_clr.setBounds(win.getWidth() / 2 + 10 + 80 + 5 + 80 + 5, 5, 80, 30);
 		btn_clr.setFont(font_btn);
+		btn_clr.setContentAreaFilled(false);
 		win.add(btn_clr);
 				
 		//pole na vypis
@@ -135,6 +138,7 @@ public class Gui extends JFrame {
 			public void actionPerformed(ActionEvent arg0) {
 				textpane.setText("");
 				Analyzator.vymazZoznamIp();
+				Analyzator.vymazZoznamTftp();
 				Analyzator.vymazZoznamKom();
 			}
 		});

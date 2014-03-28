@@ -25,6 +25,7 @@ public class Analyzator {
 	
 	protected static ArrayList<IpZaznam> ip_list = new ArrayList<IpZaznam>();
 	protected static ArrayList<Komunikacia> komunikacie = new ArrayList<Komunikacia>();
+	protected static ArrayList<Tftp> tftp = new ArrayList<Tftp>();
 	
 	protected static Pcap pcap;
 	
@@ -122,12 +123,7 @@ public class Analyzator {
 		    				if (index > 1 && index < 10) {
 			    				switch (getProtocol(packet)) {
 				    				case 6: // 06 TCP
-				    				case 11: // 11 UDP
-				    					if (index == 8) {
-				    						//spracuj tftp (udp)
-				    						spracujTftp(packet);
-				    					}
-				    					else if (index > 1 && index < 9) {
+				    					if (index > 1 && index < 9) {
 					    					int srcPort = getSrcPort(packet);
 					    	    			int dstPort = getDstPort(packet);
 					    	    			
@@ -135,6 +131,17 @@ public class Analyzator {
 				    	    					spracujKomunikaciu(packet);
 				    	    					setStartEnd();
 				    	    				}
+				    					}
+				    					break;
+				    				case 17: // 11 UDP
+				    					if (index == 8) {
+				    						//spracuj tftp (udp)
+				    						int optcode = packet.getUShort(42);
+				    						
+				    						if (optcode >= 1 && optcode <= 5) {
+				    							spracujTftp(packet);
+				    							System.out.println("tftp: " + (id - 1) + " optcode: " + optcode + "\n");
+				    						}
 				    					}
 				    					break;
 				    				case 1: // 01 ICMP
@@ -172,6 +179,9 @@ public class Analyzator {
 	    }
 	    else if (index == 9) {
 	    	vypisIcmpKom();
+	    }
+	    else if (index == 8) {
+	    	vypisTftpKom();
 	    }
 	    else {
 	    	vypisKomunikacie();
@@ -220,16 +230,42 @@ public class Analyzator {
 		String destination = getDstIP(packet);
 		int sourcePort = getSrcPort(packet);
 		int destPort = getDstPort(packet);
-		int typ = packet.getUShort(37);
+		int typ = packet.getUShort(42);
 		
 		boolean zhoda = false;
 		
-		if (destPort == 69) {	//nova komunikacia 
-			//nova kom
-			//read/ write?
+		if (destPort == 69) {	//nova komunikacia opcode 1(rrq), 2(wrq)
+			tftp.add(new Tftp(id, source, destination, typ, sourcePort, -1, true, false));
+			System.out.println(String.format("dst: 69\nsrc: %s\ndst: %s\nsrcP: %d\ndstP: %d\n", source, destination, sourcePort, -1));
+			
+			for (Tftp t: tftp) {
+				if (t.getId() == id) {
+					t.getPacketList().add(packet);
+					id++;
+					break;
+				}
+			}
 		}
-		else {	//data/error
-			//prejdenie existujucich kom
+		else {	//data(3)/ack(4)/error(5)
+			if (typ == 3) {
+				//packet s datami
+				zhoda = addTftpPacket(source, destination, sourcePort, destPort, packet);
+				if (!zhoda)
+					System.out.println("tftp: no match data\n");
+			}
+			else if (typ == 4) {
+				//potvrdzujuci packet
+				zhoda = addTftpPacket(source, destination, sourcePort, destPort, packet);
+				if (!zhoda)
+					System.out.println("tftp: no match ack\n");
+			}
+			else if (typ == 5) {
+				//error bs
+				zhoda = addTftpPacket(source, destination, sourcePort, destPort, packet);
+				if (!zhoda)
+					System.out.println("tftp: no match error\n");
+			}
+			
 		}
 	}
 	
@@ -395,6 +431,17 @@ public class Analyzator {
 		Gui.vypis(hexPacket(p) + "\n\n");
 	}
 	
+	private static void vypisTftpPacket(JPacket p) {
+		Gui.vypis("No:              " + p.getFrameNumber() + "\n");
+		Gui.vypis("Zachytena dlzka: " + p.getCaptureHeader().caplen() + "\n");
+		Gui.vypis("Dlzka po mediu:  " + wireSize(p) + "\n");
+		Gui.vypis("Typ:             " + typ(p) + "\n");
+		Gui.vypis("Source MAC:      " + srcMac(p) + "\n");
+		Gui.vypis("Destination MAC: " + dstMac(p) + "\n");
+		Gui.vypis("Typ TFTP:        " + getTftpType(p) + "\n");
+		Gui.vypis(hexPacket(p) + "\n\n");
+	}
+	
 	private static void vypisArpKom() {
 		for (Komunikacia k: komunikacie) {
 			if (k.hasStart() && k.hasEnd()) {
@@ -403,6 +450,18 @@ public class Analyzator {
 				for (int i = 0; i < k.getPacketList().size(); ++i)
 					vypisArpPacket(k.getPacketList().get(i));
 			}
+		}
+	}
+	
+	private static void vypisTftpKom() {
+		Gui.vypis("zoznam tftp\n");
+		for (Tftp k: tftp) {
+		//	if (k.hasStart() && k.hasEnd()) {
+				Gui.vypis("Komunikacia c. " + k.getId() + "\n");
+				Gui.vypis(((k.hasStart() && k.hasEnd())? "Kompletna\n": "Nekompletna\n"));
+				for (int i = 0; i < k.getPacketList().size(); ++i)
+					vypisTftpPacket(k.getPacketList().get(i));
+		//	}
 		}
 	}
 	
@@ -419,6 +478,26 @@ public class Analyzator {
 	private static String getIcmpType(JPacket p) {
 		Path file = FileSystems.getDefault().getPath("C:\\Users\\Martin\\git\\pks_zadanie1\\PKS_ZADANIE_1\\bin\\files", "icmp_type.txt");
 		int type = p.getUByte(34);
+		
+		try (BufferedReader reader = Files.newBufferedReader(file, StandardCharsets.UTF_8)) {
+		    String line = null;
+		    while ((line = reader.readLine()) != null) {
+		    	String[] riadok = line.split(",");
+		    	if (Integer.parseInt(riadok[0]) == type) {
+		    		return riadok[1];
+		    	}
+		    }
+		} 
+		catch (Exception e) {
+		    Gui.vypis("Chyba pri citani suboru: " + e + "\n");
+		}
+		
+		return String.format("Neznamy (%d)", type);
+	}
+	
+	private static String getTftpType(JPacket p) {
+		Path file = FileSystems.getDefault().getPath("C:\\Users\\Martin\\git\\pks_zadanie1\\PKS_ZADANIE_1\\bin\\files", "tftp_type.txt");
+		int type = p.getUShort(42);
 		
 		try (BufferedReader reader = Files.newBufferedReader(file, StandardCharsets.UTF_8)) {
 		    String line = null;
@@ -568,6 +647,40 @@ public class Analyzator {
 		return false;
 	}
 	
+	private static boolean addTftpPacket(String source, String destination, int srcPort, int dstPort, JPacket packet) {
+		//System.out.println("Porovnavam\n");
+		//System.out.println(String.format("src: %s\ndst: %s\nsrcP: %d, dstP: %d\nno: %d\n", source, destination, srcPort, dstPort, tftp.size()));
+		
+		for (Tftp k: tftp) {
+			//System.out.println(String.format("inside cycle\nsrc: %s\ndst: %s\nsrcP: %d, dstP: %d\n", k.getSource(), k.getDestination(), k.getPortSrc(), k.getPortDst()));
+			if (k.getPortDst() == -1) {
+				if (( (source.equals(k.getSource()) && destination.equals(k.getDestination()))   || 
+					  (source.equals(k.getDestination()) && destination.equals(k.getSource())) ) &&
+					( (srcPort == k.getPortSrc() )		||
+					  (dstPort == k.getPortSrc()) )		&&
+					  (k.hasEnd() == false) ) {
+					k.addToPacketList(packet);
+					k.updateSizeList(wireSize(packet));
+					k.setPortDst(srcPort);
+					return true;
+				}	
+			}
+			else {
+				if (( (source.equals(k.getSource()) && destination.equals(k.getDestination()))   || 
+						  (source.equals(k.getDestination()) && destination.equals(k.getSource())) ) &&
+						( (srcPort == k.getPortSrc() && dstPort == k.getPortDst())			 ||
+						  (dstPort == k.getPortSrc() && srcPort == k.getPortDst()) )		 &&
+						  (k.hasEnd() == false) ) {
+						k.addToPacketList(packet);
+						k.updateSizeList(wireSize(packet));
+						return true;
+				}
+			}
+		}
+		
+		return false;
+	}
+	
 	private static void setStartEnd(){
 		for (Komunikacia  k: komunikacie) {
 			if (!k.hasStart())
@@ -704,6 +817,13 @@ public class Analyzator {
 	public static void vymazZoznamKom() {
 		while (komunikacie.size() > 0)
 			komunikacie.remove(komunikacie.size() - 1);
+		
+		id = 1;
+	}
+	
+	public static void vymazZoznamTftp() {
+		while (tftp.size() > 0)
+			tftp.remove(tftp.size() - 1);
 		
 		id = 1;
 	}

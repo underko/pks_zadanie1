@@ -82,7 +82,7 @@ public class Tftp {
 		this.portDst = portDst;
 	}
 
-	public boolean isStart() {
+	public boolean hasStart() {
 		return start;
 	}
 
@@ -90,7 +90,7 @@ public class Tftp {
 		this.start = start;
 	}
 
-	public boolean isEnd() {
+	public boolean hasEnd() {
 		return end;
 	}
 
@@ -112,6 +112,10 @@ public class Tftp {
 
 	public void setPacketSize(int[] packetSize) {
 		this.packetSize = packetSize;
+	}
+	
+	public void addToPacketList(JPacket packet) {
+		this.packetList.add(packet);
 	}
 	
 	public void updateSizeList(int wireSize) {
