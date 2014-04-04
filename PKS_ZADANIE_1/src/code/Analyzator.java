@@ -22,6 +22,7 @@ public class Analyzator {
 	protected final static StringBuilder errbuf = new StringBuilder();
 	protected final static String ethernet = "Ethernet II";
 	protected static int id = 1;
+	protected static int ftp_control_num = 0;
 	
 	protected static ArrayList<IpZaznam> ip_list = new ArrayList<IpZaznam>();
 	protected static ArrayList<Komunikacia> komunikacie = new ArrayList<Komunikacia>();
@@ -104,6 +105,9 @@ public class Analyzator {
     		case 10:
     			port_n = 10;	//oznacenie pre spracovanie
     			break;
+    		case 11:
+    			port_n = getPortNumberFromFile("ftp control");	//doimplementacia
+    		break;
     		default:
     			break;
 		}
@@ -120,7 +124,7 @@ public class Analyzator {
 	    			
 	    			switch (etherType) {
 		    			case 2048: // 0800 IPv4
-		    				if (index > 1 && index < 10) {
+		    				if ((index > 1 && index < 10) || index == 11) {
 			    				switch (getProtocol(packet)) {
 				    				case 6: // 06 TCP
 				    					if (index > 1 && index < 9) {
@@ -130,6 +134,15 @@ public class Analyzator {
 					    	    			if (srcPort == portFinal || dstPort == portFinal) {
 				    	    					spracujKomunikaciu(packet);
 				    	    					setStartEnd();
+				    	    				}
+				    					}
+				    					
+				    					if (index == 11) { //doimplementacia
+				    						int srcPort = getSrcPort(packet);
+					    	    			int dstPort = getDstPort(packet);
+					    	    			
+					    	    			if (srcPort == portFinal || dstPort == portFinal) {
+				    	    					doimplementacia(packet);
 				    	    				}
 				    					}
 				    					break;
@@ -183,8 +196,11 @@ public class Analyzator {
 	    else if (index == 8) {
 	    	vypisTftpKom();
 	    }
-	    else {
+	    else if (index > 1 && index < 9) {
 	    	vypisKomunikacie();
+	    }
+	    else if (index == 11) {
+	    	Gui.vypis("Pocet najdenych ramcov ftp-contorl: " + ftp_control_num + ".\n");
 	    }
 	    
 		return 0;
@@ -389,6 +405,20 @@ public class Analyzator {
 		flags[3] = ((val & (1 << 0)) != 0)? 1: 0;
 		
 		return flags;
+	}
+	
+	public static void doimplementacia(JPacket p) {
+		ftp_control_num++;
+		
+		Gui.vypis("No:              " + p.getFrameNumber() + "\n");
+		Gui.vypis("Zachytena dlzka: " + p.getCaptureHeader().caplen() + "\n");
+		Gui.vypis("Dlzka po mediu:  " + wireSize(p) + "\n");
+		Gui.vypis("Typ:             " + typ(p) + "\n");
+		Gui.vypis("Source MAC:      " + srcMac(p) + "\n");
+		Gui.vypis("Destination MAC: " + dstMac(p) + "\n");
+		Gui.vypis("Src Port: " + getSrcPort(p) + "\n");
+		Gui.vypis("Dst Port: " + getDstPort(p) + "\n");
+		Gui.vypis(hexPacket(p) + "\n\n");
 	}
 	
 	private static void vypisPacket(JPacket p) {
@@ -993,4 +1023,7 @@ public class Analyzator {
 		Analyzator.subor = subor;
 	}
 	
+	public static void resetFtpNum() {
+		ftp_control_num = 0;
+	}
 }

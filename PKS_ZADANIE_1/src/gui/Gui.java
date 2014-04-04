@@ -40,7 +40,8 @@ public class Gui extends JFrame {
 										"f) FTP dátové komunikácie", 
 										"g) Všetky TFTP komunikácie", 
 										"h) Všetky ICMP komunikácie", 
-										"i) Všetky ARP dvojice (request – reply)"};
+										"i) Všetky ARP dvojice (request – reply)",
+										"doimplementacia"};
 	
 	public static void gui() {
 		
@@ -141,6 +142,7 @@ public class Gui extends JFrame {
 				Analyzator.vymazZoznamIp();
 				Analyzator.vymazZoznamTftp();
 				Analyzator.vymazZoznamKom();
+				Analyzator.resetFtpNum();
 			}
 		});
 	}
