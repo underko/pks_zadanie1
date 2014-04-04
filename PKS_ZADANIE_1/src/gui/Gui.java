@@ -88,6 +88,7 @@ public class Gui extends JFrame {
 		cmbVyber = new JComboBox<String>(cmbFill);
 		cmbVyber.setBounds(win.getWidth() / 2 + 10, 40, 250, 20);
 		cmbVyber.setFont(font);
+		cmbVyber.setMaximumRowCount(cmbFill.length);
 		win.add(cmbVyber);
 
 		obnov();

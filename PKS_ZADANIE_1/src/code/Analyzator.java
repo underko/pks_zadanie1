@@ -140,7 +140,7 @@ public class Analyzator {
 				    						
 				    						if (optcode >= 1 && optcode <= 5) {
 				    							spracujTftp(packet);
-				    							System.out.println("tftp: " + (id - 1) + " optcode: " + optcode + "\n");
+				    							//System.out.println("tftp: " + (id - 1) + " optcode: " + optcode + "\n");
 				    						}
 				    					}
 				    					break;
@@ -236,11 +236,12 @@ public class Analyzator {
 		
 		if (destPort == 69) {	//nova komunikacia opcode 1(rrq), 2(wrq)
 			tftp.add(new Tftp(id, source, destination, typ, sourcePort, -1, true, false));
-			System.out.println(String.format("dst: 69\nsrc: %s\ndst: %s\nsrcP: %d\ndstP: %d\n", source, destination, sourcePort, -1));
+			//System.out.println(String.format("dst: 69\nsrc: %s\ndst: %s\nsrcP: %d\ndstP: %d\n", source, destination, sourcePort, -1));
 			
 			for (Tftp t: tftp) {
 				if (t.getId() == id) {
 					t.getPacketList().add(packet);
+					t.updateSizeList(wireSize(packet));
 					id++;
 					break;
 				}
@@ -269,6 +270,7 @@ public class Analyzator {
 		}
 	}
 	
+	@SuppressWarnings("unused")
 	private static void spracujICMP(JPacket packet) {
 		
 		String source = getSrcIP(packet);
@@ -305,7 +307,7 @@ public class Analyzator {
 			}
 		}
 		
-		System.out.println(String.format("src: %s\ndst: %s\ntype: %d\tcode: %d\nzhoda: %s\npocet: %d\n\n", source, destination, type, code, zhoda, komunikacie.size()));
+		//System.out.println(String.format("src: %s\ndst: %s\ntype: %d\tcode: %d\nzhoda: %s\npocet: %d\n\n", source, destination, type, code, zhoda, komunikacie.size()));
 	}
 	
 	private static void spracujARP(JPacket packet) {
@@ -454,14 +456,17 @@ public class Analyzator {
 	}
 	
 	private static void vypisTftpKom() {
-		Gui.vypis("zoznam tftp\n");
 		for (Tftp k: tftp) {
-		//	if (k.hasStart() && k.hasEnd()) {
-				Gui.vypis("Komunikacia c. " + k.getId() + "\n");
-				Gui.vypis(((k.hasStart() && k.hasEnd())? "Kompletna\n": "Nekompletna\n"));
-				for (int i = 0; i < k.getPacketList().size(); ++i)
-					vypisTftpPacket(k.getPacketList().get(i));
-		//	}
+			Gui.vypis("Komunikacia c. " + k.getId() + "\n");
+			Gui.vypis(null);
+			Gui.vypis(((k.hasStart() && k.hasEnd())? "Kompletna\n": "Nekompletna\n"));
+			Gui.vypis("Klient: " + k.getSource() + ":" + getSrcPort(k.getPacketList().get(0)) + "\n");
+			Gui.vypis("Server: " + k.getDestination() + ":" + getDstPort(k.getPacketList().get(0)) + "\n");
+			Gui.vypis("Pocet ramcov: " + k.getPacketList().size() + "\n");
+			Gui.vypis("Velkosti ramcov:\n");
+			vypisPacketSizeStat(k);
+			for (int i = 0; i < k.getPacketList().size(); ++i)
+				vypisTftpPacket(k.getPacketList().get(i));
 		}
 	}
 	
@@ -648,11 +653,7 @@ public class Analyzator {
 	}
 	
 	private static boolean addTftpPacket(String source, String destination, int srcPort, int dstPort, JPacket packet) {
-		//System.out.println("Porovnavam\n");
-		//System.out.println(String.format("src: %s\ndst: %s\nsrcP: %d, dstP: %d\nno: %d\n", source, destination, srcPort, dstPort, tftp.size()));
-		
 		for (Tftp k: tftp) {
-			//System.out.println(String.format("inside cycle\nsrc: %s\ndst: %s\nsrcP: %d, dstP: %d\n", k.getSource(), k.getDestination(), k.getPortSrc(), k.getPortDst()));
 			if (k.getPortDst() == -1) {
 				if (( (source.equals(k.getSource()) && destination.equals(k.getDestination()))   || 
 					  (source.equals(k.getDestination()) && destination.equals(k.getSource())) ) &&
@@ -869,6 +870,17 @@ public class Analyzator {
 		Gui.vypis("<1280 -     > : " + k.getSizeListItem(7) + "\n");
 	}
 	
+	public static void vypisPacketSizeStat(Tftp k) {
+		Gui.vypis("<   0 -   19> : " + k.getSizeListItem(0) + "\n");
+		Gui.vypis("<  20 -   39> : " + k.getSizeListItem(1) + "\n");
+		Gui.vypis("<  40 -   79> : " + k.getSizeListItem(2) + "\n");
+		Gui.vypis("<  80 -  159> : " + k.getSizeListItem(3) + "\n");
+		Gui.vypis("< 160 -  319> : " + k.getSizeListItem(4) + "\n");
+		Gui.vypis("< 320 -  639> : " + k.getSizeListItem(5) + "\n");
+		Gui.vypis("< 640 - 1279> : " + k.getSizeListItem(6) + "\n");
+		Gui.vypis("<1280 -     > : " + k.getSizeListItem(7) + "\n");
+	}
+	
 	public static String zistiIp(JPacket packet) {
 		String ip = "";
 		
@@ -914,16 +926,16 @@ public class Analyzator {
 			int typ802_3 = packet.getUShort(14);
 			typ = "802.3";
 					
-			if (typ802_3 == 65535) {
+			if (typ802_3 == 65535) {		//	FF FF
 				typ = "802.3 RAW";
 				return typ;
 			}
-			else if (typ802_3 == 43690) {
+			else if (typ802_3 == 43690) {	//	AA AA
 				typ = "802.3 SNAP";
 				return typ;
 			}
 			else {
-				typ = "802.3 LLC";
+				typ = "802.3 LLC";			//	03
 				return typ;
 			}
 		}
